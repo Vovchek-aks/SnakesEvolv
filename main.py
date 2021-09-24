@@ -9,12 +9,12 @@ from very_useful_funcs import *
 class CellType(Enum):
     border = 0,
     snake = 1,
-    eat = 2,
+    food = 2,
     empty = 3
 
 
 class Cell:
-    eat_cells = []
+    food_cells = []
     border_cells = []
 
     def __init__(self, pos: tuple, cell_type=CellType.border):
@@ -31,18 +31,28 @@ class Cell:
 
     @classmethod
     def get_all_cells(cls) -> list:
-        all_c = cls.eat_cells + cls.border_cells
+        all_c = cls.food_cells + cls.border_cells
         for s in Snake.snakes:
             all_c += s.cells
 
         return all_c
 
     @classmethod
+    def get_type_cells(cls, c_type=CellType.empty) -> list:
+        if c_type == CellType.food:
+            return cls.food_cells
+        if c_type == CellType.border:
+            return cls.border_cells
+        if c_type == CellType.snake:
+            return open_list([s.cells for s in Snake.snakes])
+        return []
+
+    @classmethod
     def add_cell(cls, cell):
         if cell.type == CellType.border:
             cls.border_cells += [cell]
-        elif cell.type == CellType.eat:
-            cls.eat_cells += [cell]
+        elif cell.type == CellType.food:
+            cls.food_cells += [cell]
 
 
 class Dirs(Enum):
@@ -69,15 +79,40 @@ class Sensor:
         for x in range(-sz, sz):
             for y in range(-sz, sz):
                 if not (x == y == 0):
-                    s += [Sensor((x, y), tuple([randint(-64, 64) for i in range(4)]), s_type)]
+                    s += [Sensor((x, y), tuple([randint(-5, 5) for i in range(4)]), s_type)]
+
+                    if s_type in (CellType.border, CellType.snake, CellType.food):
+                        if x == -1 and y == 0:
+                            s[-1].values = (5, 11, 5, -11)
+                        elif x == 1 and y == 0:
+                            s[-1].values = (5, -11, 5, 11)
+                        elif x == 0 and y == 1:
+                            s[-1].values = (11, 5, -11, 5)
+                        elif x == 0 and y == -1:
+                            s[-1].values = (-11, 5, 11, 5)
+
+                        if s_type == CellType.food:
+                            s[-1].values = mult_tuple_int(s[-1].values, -1)
+
         return tuple(s)
 
     @classmethod
     def generate_all(cls, sz: int) -> tuple:
         s = ()
         for i in CellType:
+            if i == CellType.empty:
+                continue
             s = s + cls.generate(sz, i)
         return s
+
+    @staticmethod
+    def make_error(sens: tuple, n: int) -> None:
+        for _ in range(n):
+            s = sens[randint(0, len(sens) - 1)]
+            sv = list(s.values)
+            j = randint(0, 3)
+            sv[j] = min(64, max(-64, sv[j] + randint(-10, 10)))
+            s.values = tuple(sv)
 
     def __init__(self, pos: tuple, values: tuple, cell_type=CellType.empty):
         self.pos = pos
@@ -85,12 +120,14 @@ class Sensor:
         self.values = values
 
     def view(self, d_pos: tuple) -> tuple:
-        c = Cell.find_cell_pos(Cell.get_all_cells(), sum_tuple(d_pos, self.pos))
+        c = Cell.find_cell_pos(Cell.get_type_cells(self.type), sum_tuple(d_pos, self.pos))
         return self.values if c and c.type == self.type else (0, 0, 0, 0)
 
 
 class Snake:
     snakes = []
+
+    health_in_food = 20
 
     @classmethod
     def generate_snake(cls, pos: tuple, dir_=Dirs.down, l_=4):
@@ -99,7 +136,7 @@ class Snake:
             c += [Cell(pos, CellType.snake)]
             pos = sum_tuple(pos, dirs_dirs[dir_])
 
-        return Snake(c, Sensor.generate_all(1))
+        return Snake(c, Sensor.generate_all(3))
 
     @classmethod
     def update_all(cls):
@@ -111,6 +148,7 @@ class Snake:
     def __init__(self, cells: list, sensors: tuple):
         self.cells = cells
         self.sensors = sensors
+        self.health = Snake.health_in_food * 2
 
         Snake.snakes += [self]
 
@@ -126,28 +164,39 @@ class Snake:
 
     def die(self):
         for c in self.cells:
-            c.type = CellType.eat
+            c.type = CellType.food
             Cell.add_cell(c)
 
         Snake.snakes.remove(self)
 
     def eat(self, pos):
         tail = self.cells[-1].pos
-        Cell.eat_cells.remove(Cell.find_cell_pos(Cell.eat_cells, pos))
+        Cell.food_cells.remove(Cell.find_cell_pos(Cell.food_cells, pos))
         self.move(pos)
         self.cells += [Cell(tail, CellType.snake)]
 
-        if len(self.cells) >= 10:
+        if len(self.cells) >= 12:
             self.replication()
 
     def replication(self):
         s = self.cells[len(self.cells) // 2:][::-1]
         self.cells = self.cells[:len(self.cells) // 2]
 
-        Snake(s, self.sensors)
+        sn = Snake(s, self.sensors)
+        if not randint(0, 3):
+            Sensor.make_error(sn.sensors, randint(1, 5))
+
+    def cut_tail(self) -> bool:
+        self.health = self.health_in_food
+
+        self.cells.pop(-1)
+        if len(self.cells) < 4:
+            self.die()
+            return False
+
+        return True
 
     def go(self, dir_) -> bool:
-        f = True
 
         pos = self.cells[0].pos
         pos = sum_tuple(pos, dirs_dirs[dir_])
@@ -155,15 +204,19 @@ class Snake:
         c = Cell.find_cell_pos(Cell.get_all_cells(), pos)
 
         if c.__class__ == Cell:
-            if c.type == CellType.eat:
+            if c.type == CellType.food:
                 self.eat(pos)
             elif c.type in (CellType.border, CellType.snake):
                 self.die()
-                f = False
+                return False
         else:
             self.move(pos)
 
-        return f
+        self.health -= 1
+        if self.health <= 0 and not self.cut_tail():
+            return False
+
+        return True
 
     def update(self) -> bool:
         sum_ = (0, 0, 0, 0)
@@ -174,6 +227,8 @@ class Snake:
 
 
 class Field:
+    food_n = n_w_cells * 4
+
     @staticmethod
     def gen_borders():
         for x in range(0, n_w_cells):
@@ -184,11 +239,20 @@ class Field:
             Cell.add_cell(Cell((0, y)))
             Cell.add_cell(Cell((n_w_cells - 1, y)))
 
+    @staticmethod
+    def generate_food():
+        while len(Cell.food_cells) < Field.food_n:
+            pos = randint(1, n_w_cells - 2), randint(1, n_h_cells - 2)
+            while Cell.find_cell_pos(Cell.get_all_cells(), pos):
+                pos = randint(1, n_w_cells - 2), randint(1, n_h_cells - 2)
+
+            Cell.add_cell(Cell(pos, CellType.food))
+
 
 class Drawer:
     colors = {
         CellType.border: border_color,
-        CellType.eat: eat_color,
+        CellType.food: eat_color,
         CellType.snake: snake_color,
     }
 
@@ -217,9 +281,6 @@ clock = pg.time.Clock()
 Field.gen_borders()
 
 
-for x in range(45):
-    Snake.generate_snake((4 + x * 2, 30), Dirs.down)
-    Snake.generate_snake((4 + x * 2, 31))
 
 # for y in range(20):
 #     Cell.add_cell(Cell((10, 10 + y), CellType.eat))
@@ -230,8 +291,14 @@ while True:
     for event in pg.event.get():
         if event.type == pg.QUIT:
             exit(0)
-        elif event.type == pg.MOUSEMOTION:
-            pass
+
+    if len(Snake.snakes) == 0:
+        Cell.food_cells = []
+        for x in range(10):
+            for y in range(9):
+                Snake.generate_snake((16 + x * 4, 3 + y * 6))
+
+    Field.generate_food()
 
     Snake.update_all()
 
@@ -239,7 +306,7 @@ while True:
     Drawer.draw_lines()
 
     pg.display.flip()
-    clock.tick(10)
+    clock.tick(30)
 
 
 
