@@ -1,6 +1,7 @@
 from enum import Enum
 import pygame as pg
 from random import randint
+import json
 
 from settings import *
 from very_useful_funcs import *
@@ -11,6 +12,14 @@ class CellType(Enum):
     snake = 1,
     food = 2,
     empty = 3
+
+
+int_to_cell_type = {
+    0: CellType.border,
+    1: CellType.snake,
+    2: CellType.food,
+    3: CellType.empty,
+}
 
 
 class Cell:
@@ -130,13 +139,13 @@ class Snake:
     health_in_food = 20
 
     @classmethod
-    def generate_snake(cls, pos: tuple, dir_=Dirs.down, l_=4):
+    def generate_snake(cls, pos: tuple, dir_=Dirs.down, l_=4, sensors=()):
         c = []
         for i in range(l_):
             c += [Cell(pos, CellType.snake)]
             pos = sum_tuple(pos, dirs_dirs[dir_])
 
-        return Snake(c, Sensor.generate_all(3))
+        return Snake(c, sensors if sensors else Sensor.generate_all(3))
 
     @classmethod
     def update_all(cls):
@@ -149,6 +158,8 @@ class Snake:
         self.cells = cells
         self.sensors = sensors
         self.health = Snake.health_in_food * 2
+
+        self.life_steps = 0
 
         Snake.snakes += [self]
 
@@ -163,6 +174,8 @@ class Snake:
         self.cells[0].pos = pos
 
     def die(self):
+        Logger.on_snake_death(self)
+
         for c in self.cells:
             c.type = CellType.food
             Cell.add_cell(c)
@@ -215,6 +228,8 @@ class Snake:
         self.health -= 1
         if self.health <= 0 and not self.cut_tail():
             return False
+
+        self.life_steps += 1
 
         return True
 
@@ -271,6 +286,58 @@ class Drawer:
                          (c.pos[0] * cell_size, c.pos[1] * cell_size, cell_size, cell_size))
 
 
+class Logger:
+    @staticmethod
+    def sensors_to_list(t: tuple):
+        r = []
+        for i in t:
+            r += [{
+                    "pos": i.pos,
+                    "val": i.values,
+                    "typ": i.type.value[0]
+                }]
+
+        return r
+
+    @staticmethod
+    def list_to_sensors(t: list):
+        r = []
+        for i in t:
+            r += [Sensor(tuple(i["pos"]), tuple(i["val"]), int_to_cell_type[i["typ"]])]
+
+        return tuple(r)
+
+    @staticmethod
+    def on_snake_death(snake: Snake):
+        js = json.load(open("genes.json", encoding="UTF-8"))
+
+        js["history"] += [snake.life_steps]
+
+        if js["best"]["score"] <= snake.life_steps:
+            js["best"]["score"] = snake.life_steps
+            js["best"]["genes"] = Logger.sensors_to_list(snake.sensors)
+
+        open("genes.json", 'w', encoding="UTF-8").write(json.dumps(js))
+
+    @staticmethod
+    def get_best_snake_sens():
+        return Logger.list_to_sensors(json.load(open("genes.json", encoding="UTF-8"))["best"]["genes"])
+
+    @staticmethod
+    def clear_json():
+        if json.load(open("genes.json", encoding="UTF-8"))["need_del"]:
+            open("genes.json", 'w', encoding="UTF-8").write(json.dumps({
+                "need_del": False,
+                "best": {
+                    "score": -1,
+                    "genes": []
+                },
+                "history": []
+            }))
+
+
+Logger.clear_json()
+
 pg.init()
 sc = pg.display.set_mode(size)
 
@@ -279,11 +346,6 @@ pg.display.set_caption('Snakes')
 clock = pg.time.Clock()
 
 Field.gen_borders()
-
-
-
-# for y in range(20):
-#     Cell.add_cell(Cell((10, 10 + y), CellType.eat))
 
 
 while True:
@@ -296,7 +358,9 @@ while True:
         Cell.food_cells = []
         for x in range(10):
             for y in range(9):
-                Snake.generate_snake((16 + x * 4, 3 + y * 6))
+                s = Snake.generate_snake((16 + x * 4, 3 + y * 6), sensors=Logger.get_best_snake_sens())
+                if x % 2:
+                    Sensor.make_error(s.sensors, randint(1, 5))
 
     Field.generate_food()
 
