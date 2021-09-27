@@ -176,9 +176,7 @@ class Snake:
     def die(self):
         Logger.on_snake_death(self)
 
-        for c in self.cells:
-            c.type = CellType.food
-            Cell.add_cell(c)
+        self.cells = []
 
         Snake.snakes.remove(self)
 
