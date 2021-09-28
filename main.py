@@ -136,7 +136,7 @@ class Sensor:
 class Snake:
     snakes = []
 
-    health_in_food = 20
+    health_in_food = 30
 
     @classmethod
     def generate_snake(cls, pos: tuple, dir_=Dirs.down, l_=4, sensors=()):
@@ -154,12 +154,12 @@ class Snake:
             if cls.snakes[i].update():
                 i += 1
 
-    def __init__(self, cells: list, sensors: tuple):
+    def __init__(self, cells: list, sensors: tuple, steps=0):
         self.cells = cells
         self.sensors = sensors
         self.health = Snake.health_in_food * 2
 
-        self.life_steps = 0
+        self.life_steps = steps
 
         Snake.snakes += [self]
 
@@ -193,7 +193,7 @@ class Snake:
         s = self.cells[len(self.cells) // 2:][::-1]
         self.cells = self.cells[:len(self.cells) // 2]
 
-        sn = Snake(s, self.sensors)
+        sn = Snake(s, self.sensors, steps=self.life_steps)
         if not randint(0, 3):
             Sensor.make_error(sn.sensors, randint(1, 5))
 
@@ -240,7 +240,7 @@ class Snake:
 
 
 class Field:
-    food_n = n_w_cells * 4
+    food_n = n_w_cells * 3
 
     @staticmethod
     def gen_borders():
