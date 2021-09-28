@@ -368,7 +368,7 @@ while True:
     Drawer.draw_lines()
 
     pg.display.flip()
-    clock.tick(30)
+    clock.tick(1000)
 
 
 
