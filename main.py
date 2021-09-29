@@ -242,7 +242,7 @@ class Snake:
 
 
 class Field:
-    food_n = n_w_cells * 3
+    food_n = n_w_cells * 2
 
     @staticmethod
     def gen_borders():
