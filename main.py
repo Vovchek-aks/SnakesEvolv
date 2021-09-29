@@ -136,7 +136,7 @@ class Sensor:
 class Snake:
     snakes = []
 
-    health_in_food = 30
+    health_in_food = 40
 
     @classmethod
     def generate_snake(cls, pos: tuple, dir_=Dirs.down, l_=4, sensors=()):
@@ -159,7 +159,7 @@ class Snake:
         self.sensors = sensors
         self.health = Snake.health_in_food * 2
 
-        self.life_steps = steps
+        self.life_steps = 0
 
         Snake.snakes += [self]
 
@@ -186,7 +186,7 @@ class Snake:
         self.move(pos)
         self.cells += [Cell(tail, CellType.snake)]
 
-        if len(self.cells) >= 12:
+        if len(self.cells) >= 14:
             self.replication()
 
     def replication(self):
@@ -196,6 +196,8 @@ class Snake:
         sn = Snake(s, self.sensors, steps=self.life_steps)
         if not randint(0, 3):
             Sensor.make_error(sn.sensors, randint(1, 5))
+
+        self.health = sn.health
 
     def cut_tail(self) -> bool:
         self.health = self.health_in_food
