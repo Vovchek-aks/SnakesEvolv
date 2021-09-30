@@ -186,7 +186,7 @@ class Snake:
         self.move(pos)
         self.cells += [Cell(tail, CellType.snake)]
 
-        if len(self.cells) >= 14:
+        if len(self.cells) >= 10:
             self.replication()
 
     def replication(self):
