@@ -145,7 +145,7 @@ class Snake:
             c += [Cell(pos, CellType.snake)]
             pos = sum_tuple(pos, dirs_dirs[dir_])
 
-        return Snake(c, sensors if sensors else Sensor.generate_all(3))
+        return Snake(c, sensors if sensors else Sensor.generate_all(5))
 
     @classmethod
     def update_all(cls):
