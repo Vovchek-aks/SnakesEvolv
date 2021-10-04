@@ -338,6 +338,7 @@ class Logger:
 
         Logger.bs_live = -1
         Logger.bs_genes = []
+        Logger.s_lives = []
 
     @staticmethod
     def get_best_snake_sens():
