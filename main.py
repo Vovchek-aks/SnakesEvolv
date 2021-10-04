@@ -57,6 +57,13 @@ class Cell:
         return []
 
     @classmethod
+    def get_types_cells(cls, c_types=(CellType.empty,)) -> list:
+        r = []
+        for i in c_types:
+            r += cls.get_type_cells(i)
+        return r
+
+    @classmethod
     def add_cell(cls, cell):
         if cell.type == CellType.border:
             cls.border_cells += [cell]
@@ -83,14 +90,14 @@ class Sensor:
     dirs = (Dirs.up, Dirs.right, Dirs.down, Dirs.left)
 
     @classmethod
-    def generate(cls, sz: int, s_type=CellType.empty) -> tuple:
+    def generate(cls, sz: int, s_type=(CellType.empty,)) -> tuple:
         s = []
         for x in range(-sz, sz):
             for y in range(-sz, sz):
                 if not (x == y == 0):
                     s += [Sensor((x, y), tuple([randint(-5, 5) for i in range(4)]), s_type)]
 
-                    if s_type in (CellType.border, CellType.snake, CellType.food):
+                    if s_type[0] in (CellType.border, CellType.snake, CellType.food):
                         if x == -1 and y == 0:
                             s[-1].values = (5, 11, 5, -11)
                         elif x == 1 and y == 0:
@@ -100,7 +107,7 @@ class Sensor:
                         elif x == 0 and y == -1:
                             s[-1].values = (-11, 5, 11, 5)
 
-                        if s_type == CellType.food:
+                        if s_type == (CellType.food,):
                             s[-1].values = mult_tuple_int(s[-1].values, -1)
 
         return tuple(s)
@@ -108,9 +115,7 @@ class Sensor:
     @classmethod
     def generate_all(cls, sz: int) -> tuple:
         s = ()
-        for i in CellType:
-            if i == CellType.empty:
-                continue
+        for i in ((CellType.food,), (CellType.border, CellType.snake)):
             s = s + cls.generate(sz, i)
         return s
 
@@ -123,14 +128,14 @@ class Sensor:
             sv[j] = min(64, max(-64, sv[j] + randint(-10, 10)))
             s.values = tuple(sv)
 
-    def __init__(self, pos: tuple, values: tuple, cell_type=CellType.empty):
+    def __init__(self, pos: tuple, values: tuple, cell_type=(CellType.empty,)):
         self.pos = pos
         self.type = cell_type
         self.values = values
 
     def view(self, d_pos: tuple) -> tuple:
-        c = Cell.find_cell_pos(Cell.get_type_cells(self.type), sum_tuple(d_pos, self.pos))
-        return self.values if c and c.type == self.type else (0, 0, 0, 0)
+        c = Cell.find_cell_pos(Cell.get_types_cells(self.type), sum_tuple(d_pos, self.pos))
+        return self.values if c and c.type in self.type else (0, 0, 0, 0)
 
 
 class Snake:
@@ -287,6 +292,11 @@ class Drawer:
 
 
 class Logger:
+    bs_live = -1
+    bs_genes = []
+
+    s_lives = []
+
     @staticmethod
     def sensors_to_list(t: tuple):
         r = []
@@ -294,7 +304,7 @@ class Logger:
             r += [{
                     "pos": i.pos,
                     "val": i.values,
-                    "typ": i.type.value[0]
+                    "typ": [j.value[0] for j in i.type]
                 }]
 
         return r
@@ -303,21 +313,31 @@ class Logger:
     def list_to_sensors(t: list):
         r = []
         for i in t:
-            r += [Sensor(tuple(i["pos"]), tuple(i["val"]), int_to_cell_type[i["typ"]])]
+            r += [Sensor(tuple(i["pos"]), tuple(i["val"]), tuple([int_to_cell_type[j] for j in i["typ"]]))]
 
         return tuple(r)
 
     @staticmethod
     def on_snake_death(snake: Snake):
+        Logger.s_lives += [snake.life_steps]
+
+        if Logger.bs_live <= snake.life_steps:
+            Logger.bs_live = snake.life_steps
+            Logger.bs_genes = Logger.sensors_to_list(snake.sensors)
+
+    @staticmethod
+    def on_restart():
         js = json.load(open("genes.json", encoding="UTF-8"))
 
-        js["history"] += [snake.life_steps]
+        js["best"]["score"] = Logger.bs_live
+        js["best"]["genes"] = Logger.bs_genes
 
-        if js["best"]["score"] <= snake.life_steps:
-            js["best"]["score"] = snake.life_steps
-            js["best"]["genes"] = Logger.sensors_to_list(snake.sensors)
+        js["history"] += Logger.s_lives
 
         open("genes.json", 'w', encoding="UTF-8").write(json.dumps(js))
+
+        Logger.bs_live = -1
+        Logger.bs_genes = []
 
     @staticmethod
     def get_best_snake_sens():
@@ -352,9 +372,12 @@ while True:
     sc.fill(bg_color)
     for event in pg.event.get():
         if event.type == pg.QUIT:
+            Logger.on_restart()
             exit(0)
 
     if len(Snake.snakes) == 0:
+        Logger.on_restart()
+
         Cell.food_cells = []
         for x in range(10):
             for y in range(9):
