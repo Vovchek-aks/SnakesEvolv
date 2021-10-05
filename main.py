@@ -329,8 +329,9 @@ class Logger:
     def on_restart():
         js = json.load(open("genes.json", encoding="UTF-8"))
 
-        js["best"]["score"] = Logger.bs_live
-        js["best"]["genes"] = Logger.bs_genes
+        if js["best"]["score"] == Logger.bs_live:
+            js["best"]["score"] = Logger.bs_live
+            js["best"]["genes"] = Logger.bs_genes
 
         js["history"] += Logger.s_lives
 
