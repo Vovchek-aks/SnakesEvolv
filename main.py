@@ -164,7 +164,7 @@ class Snake:
         self.sensors = sensors
         self.health = Snake.health_in_food * 2
 
-        self.life_steps = 0
+        self.life_steps = steps
 
         Snake.snakes += [self]
 
@@ -329,7 +329,7 @@ class Logger:
     def on_restart():
         js = json.load(open("genes.json", encoding="UTF-8"))
 
-        if js["best"]["score"] * 0.9 <= Logger.bs_live:
+        if js["best"]["score"] * 0.99 <= Logger.bs_live:
             js["best"]["score"] = Logger.bs_live
             js["best"]["genes"] = Logger.bs_genes
 
