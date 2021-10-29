@@ -11,3 +11,4 @@ def open_list(ls: list) -> list:
     for i in ls:
         r += i
     return r
+

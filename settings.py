@@ -19,4 +19,3 @@ snake_color = 50, 70, 200
 
 error_color = 255, 0, 200
 
-

@@ -19,3 +19,4 @@ for g in range(1, 11):
         plt.savefig(f'ims/s{g}-g{i}.png')
 
         plt.clf()
+

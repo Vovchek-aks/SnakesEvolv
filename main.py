@@ -4,7 +4,7 @@ from random import randint
 import json
 
 from settings import *
-from very_useful_funcs import *
+from funcs import *
 
 
 class CellType(Enum):
@@ -395,8 +395,8 @@ while True:
     Drawer.draw_lines()
 
     pg.display.flip()
-    clock.tick(1000)
 
+    clock.tick(1000)
 
 
 
